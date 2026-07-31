@@ -27,7 +27,7 @@
   --sombra-card: 0 4px 20px rgba(0, 34, 49, 0.12);
   --radius: 8px;
   --radius-lg: 12px;
-  --max-width: 1400px;
+  --max-width: 1700px;
 }
 
 * { box-sizing: border-box; }
@@ -230,6 +230,7 @@ body {
 
 /* ── Main content ── */
 main {
+  max-width: var(--max-width);
   margin: 0 auto;
   padding: 24px 24px 48px;
 }
