@@ -12,7 +12,7 @@
   --azul-claro: #2fb6dd;
   --azul-claro2: #eef8fb;
   --cinza-medio: #6b7c8a;
-  --cinza-claro: #f2f5f7;
+  --cinza-claro: #f0f0f0;
   --cinza-zebra: #f8fafb;
   --amarelo: #2fb6dd;
   --texto-escuro: #10222c;
@@ -32,7 +32,7 @@
   --sombra-card: 0 2px 4px rgba(11, 44, 61, 0.05), 0 14px 32px rgba(11, 44, 61, 0.10);
   --radius: 10px;
   --radius-lg: 16px;
-  --max-width: 1400px;
+  --max-width: 1600px;
 
   --font-display: 'Space Grotesk', 'Source Sans 3', 'Segoe UI', Arial, sans-serif;
   --font-body: 'Source Sans 3', 'Segoe UI', Arial, sans-serif;
@@ -325,6 +325,48 @@ select.regiao-select {
 @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 700px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
 
+/* ── KPIs em bento: 1º cartão vira destaque grande, os 4 seguintes formam
+     um bloco 2x2 compacto ao lado. Puramente estrutural — os cartões em si
+     continuam sendo os mesmos elementos .kpi gerados pelo painel.js. ── */
+.kpis-bento {
+  grid-template-columns: repeat(6, 1fr);
+  grid-auto-rows: minmax(84px, auto);
+}
+
+.kpis-bento .kpi:nth-child(1) {
+  grid-column: span 2;
+  grid-row: span 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.kpis-bento .kpi:nth-child(1) .val { font-size: 40px; }
+.kpis-bento .kpi:nth-child(1) .lbl { font-size: 12px; }
+
+.kpis-bento .kpi:nth-child(2) { grid-column: span 2; grid-row: 1; }
+.kpis-bento .kpi:nth-child(3) { grid-column: span 2; grid-row: 1; }
+.kpis-bento .kpi:nth-child(4) { grid-column: span 2; grid-row: 2; }
+.kpis-bento .kpi:nth-child(5) { grid-column: span 2; grid-row: 2; }
+
+@media (max-width: 1100px) {
+  .kpis-bento { grid-template-columns: repeat(4, 1fr); }
+  .kpis-bento .kpi:nth-child(1) { grid-column: span 4; grid-row: span 1; flex-direction: row; justify-content: space-between; align-items: center; }
+  .kpis-bento .kpi:nth-child(2),
+  .kpis-bento .kpi:nth-child(3),
+  .kpis-bento .kpi:nth-child(4),
+  .kpis-bento .kpi:nth-child(5) { grid-column: span 2; grid-row: auto; }
+}
+
+@media (max-width: 700px) {
+  .kpis-bento { grid-template-columns: repeat(2, 1fr); }
+  .kpis-bento .kpi:nth-child(1) { grid-column: span 2; }
+  .kpis-bento .kpi:nth-child(2),
+  .kpis-bento .kpi:nth-child(3),
+  .kpis-bento .kpi:nth-child(4),
+  .kpis-bento .kpi:nth-child(5) { grid-column: span 1; }
+}
+
 .kpis-compare {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -428,7 +470,7 @@ select.regiao-select {
   padding-top: 6px;
 }
 
-/* ── Grids ── */
+/* ── Grids legadas (mantidas para outras views do painel) ── */
 .grid2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; }
 @media (max-width: 980px) { .grid2 { grid-template-columns: 1fr; } }
 
@@ -440,6 +482,84 @@ select.regiao-select {
 
 .gridcompare { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
 @media (max-width: 900px) { .gridcompare { grid-template-columns: 1fr; } }
+
+/* ── Bento grid — view Água ──
+   O mapa é a peça central, ocupando as duas primeiras linhas à esquerda.
+   Donuts e composição se encaixam à direita, rede e contexto fecham a base.
+
+   .  .  .  .  .  .  .  D  D  D  D  D
+   M  M  M  M  M  M  M  D  D  D  D  D
+   M  M  M  M  M  M  M  C  C  C  C  C
+   R  R  R  R  S  S  S  S  S  S  S  S
+*/
+.bento-agua {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-template-rows: auto auto auto;
+  grid-template-areas:
+    "map map map map map map map donuts donuts donuts donuts donuts"
+    "map map map map map map map comp   comp   comp   comp   comp"
+    "rede rede rede rede scope scope scope scope scope scope scope scope";
+  gap: 20px;
+  align-items: stretch;
+}
+
+.bento-item { margin-bottom: 0; }
+
+.area-map     { grid-area: map; }
+.area-donuts  { grid-area: donuts; }
+.area-comp    { grid-area: comp; }
+.area-rede    { grid-area: rede; }
+.area-scope   { grid-area: scope; }
+
+.area-map .map-slot { min-height: 420px; }
+
+/* pequena assinatura visual: o painel do mapa ganha um respiro extra e
+   a borda superior acompanha o azul institucional em vez do gradiente padrão */
+.area-map.panel { border-color: var(--primary-light); }
+.area-map .panel-header { border-bottom-color: var(--accent-soft); }
+
+@media (max-width: 1080px) {
+  .bento-agua {
+    grid-template-columns: repeat(6, 1fr);
+    grid-template-areas:
+      "map map map map map map"
+      "donuts donuts donuts comp comp comp"
+      "rede rede rede rede scope scope";
+  }
+  .area-map .map-slot { min-height: 340px; }
+}
+
+@media (max-width: 700px) {
+  .bento-agua {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "map"
+      "donuts"
+      "comp"
+      "rede"
+      "scope";
+  }
+}
+
+/* entrada suave dos blocos do bento, respeitando reduced-motion */
+.bento-item {
+  animation: bento-in 0.5s cubic-bezier(0.22, 0.8, 0.36, 1) backwards;
+}
+.area-map    { animation-delay: 0s; }
+.area-donuts { animation-delay: 0.05s; }
+.area-comp   { animation-delay: 0.1s; }
+.area-rede   { animation-delay: 0.15s; }
+.area-scope  { animation-delay: 0.2s; }
+
+@keyframes bento-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bento-item { animation: none; }
+}
 
 /* ── Mapa ── */
 .map-slot {
