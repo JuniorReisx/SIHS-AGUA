@@ -113,6 +113,65 @@ function currentSelectionLabel(){
   return 'Estado da Bahia — 417 municípios';
 }
 
+function isFullState(){
+  return !state.selectedMun && state.regiao === 'todas';
+}
+
+function fmtDeltaPp(pp){
+  const sign = pp > 0 ? '+' : '';
+  return sign + fmt1(pp) + ' p.p.';
+}
+
+function deltaClass(pp, higherIsBetter){
+  if(Math.abs(pp) < 0.05) return 'neu';
+  const better = higherIsBetter ? pp > 0 : pp < 0;
+  return better ? 'up' : 'down';
+}
+
+/** Painel de contexto: metodologia (Bahia) ou comparação compacta com o Estado. */
+function renderVsBahiaHtml({ label, feats, v, cl, pop, bahiaV, bahiaCl, bahiaPop, semLabel }){
+  if(isFullState()){
+    return `<p><b>${label}</b><br><br>
+      Dados SIDRA/IBGE (Censo 2022) — domicílios particulares permanentes ocupados por forma de abastecimento de água.
+      <br><br>
+      <b>Adequado</b> = rede geral de distribuição + poço profundo/artesiano + poço raso/freático/cacimba.
+      <br><b>Inadequado</b> = fonte/nascente, carro-pipa, água de chuva, rios/açudes ou outra forma.
+    </p>`;
+  }
+
+  const shareDom = bahiaV.aa_total ? (v.aa_total||0)/bahiaV.aa_total*100 : 0;
+  const sharePop = bahiaPop ? pop/bahiaPop*100 : 0;
+  const shareMun = GEO.features.length ? feats.length/GEO.features.length*100 : 0;
+  const dAdeq = cl.pctAdeq - bahiaCl.pctAdeq;
+  const dInadeq = cl.pctInadeq - bahiaCl.pctInadeq;
+  const dSem = cl.pctSem - bahiaCl.pctSem;
+
+  const cell = (titulo, sel, ba, delta, betterHigher) => `
+    <div class="cmp-cell">
+      <div class="cmp-cell-lbl">${titulo}</div>
+      <div class="cmp-cell-vals">
+        <div><span class="cmp-k">Seleção</span><span class="cmp-n">${fmt1(sel)}%</span></div>
+        <div><span class="cmp-k">Bahia</span><span class="cmp-n muted">${fmt1(ba)}%</span></div>
+      </div>
+      <div class="cmp-delta ${deltaClass(delta, betterHigher)}">${fmtDeltaPp(delta)}</div>
+    </div>`;
+
+  return `
+    <div class="cmp-wrap">
+      <div class="cmp-label">${label}</div>
+      <div class="cmp-shares">
+        <div class="cmp-share"><strong>${fmt1(shareDom)}%</strong><span>dos domicílios da BA</span></div>
+        <div class="cmp-share"><strong>${fmt1(sharePop)}%</strong><span>da população da BA</span></div>
+        <div class="cmp-share"><strong>${fmt(feats.length)}</strong><span>de ${fmt(GEO.features.length)} municípios (${fmt1(shareMun)}%)</span></div>
+      </div>
+      <div class="cmp-grid">
+        ${cell('Atendimento adequado', cl.pctAdeq, bahiaCl.pctAdeq, dAdeq, true)}
+        ${cell('Inadequado', cl.pctInadeq, bahiaCl.pctInadeq, dInadeq, false)}
+        ${cell(semLabel, cl.pctSem, bahiaCl.pctSem, dSem, false)}
+      </div>
+    </div>`;
+}
+
 // ---------------- controles ----------------
 function renderControls(){
   document.querySelectorAll('#segGroupBy button').forEach(b=>b.classList.toggle('active', b.dataset.g===state.groupBy));
@@ -271,7 +330,7 @@ function buildMapSkeleton(){
   let paths = '';
   GEO.features.forEach((f,idx)=>{ paths += `<path class="mun-path" data-idx="${idx}" d="${geomToPath(f.geometry)}" fill-rule="evenodd"></path>`; });
   const wrapper = document.createElement('div');
-  wrapper.innerHTML = `<svg id="mapSvg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><g id="zoomGroup"><g id="munLayer">${paths}</g></g></svg>`;
+  wrapper.innerHTML = `<svg id="mapSvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"><g id="zoomGroup"><g id="munLayer">${paths}</g></g></svg>`;
   mapSvgEl = wrapper.firstElementChild;
   bindMapInteractions();
 }
@@ -348,33 +407,6 @@ function renderMap(){
   if(legendSlot) legendSlot.innerHTML = legendHtml;
 }
 
-// ---------------- donut ----------------
-function renderDonut(svgId, legendId, parts){
-  const svg = document.getElementById(svgId);
-  if(!svg) return;
-  const cx=90, cy=90, r=68, sw=28;
-  const total = parts.reduce((s,p)=>s+p[1],0);
-  const circumference = 2*Math.PI*r;
-  let offsetAcc = 0, svgParts = '';
-  parts.forEach(([label,val,color])=>{
-    const frac = total? val/total : 0;
-    const len = frac*circumference;
-    svgParts += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
-      stroke-dasharray="${len} ${circumference-len}" stroke-dashoffset="${-offsetAcc}" transform="rotate(-90 ${cx} ${cy})"></circle>`;
-    offsetAcc += len;
-  });
-  const pctFirst = total? parts[0][1]/total*100 : 0;
-  svg.innerHTML = svgParts + `<circle cx="${cx}" cy="${cy}" r="${r-sw/2-3}" fill="#fff"></circle>
-    <text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="16" font-weight="700" fill="var(--azul-escuro)" font-family="Arial Narrow, Arial, sans-serif">${fmt1(pctFirst)}%</text>
-    <text x="${cx}" y="${cy+13}" text-anchor="middle" font-size="9" fill="#5A6673" font-family="Arial Narrow, Arial, sans-serif">${parts[0][0].toLowerCase()}</text>`;
-  document.getElementById(legendId).innerHTML = parts.map(([label,val,color])=>{
-    const pct = total? (val/total*100).toFixed(1) : '0.0';
-    const light = String(color).toUpperCase() === '#EFF7FC';
-    const swStyle = `background:${color}` + (light ? ';box-shadow:inset 0 0 0 1px #C9E4F5' : '');
-    return `<div class="donut-legend-row"><span><span class="sw" style="${swStyle}"></span>${label}</span><span>${fmt(val)} (${pct}%)</span></div>`;
-  }).join('');
-}
-
 // ================= VIEW ÁGUA =================
 const AA_COMP_CATS = [
   {key:'aa_rede', label:'Rede geral de distribuição', good:true},
@@ -399,29 +431,55 @@ function renderTabAgua(){
   const pctCom = v.aa_total ? comForma/v.aa_total*100 : 0;
   const pctSem = v.aa_total ? (v.aa_sem_rede||0)/v.aa_total*100 : 0;
 
+  const bahiaV = sumAa(GEO.features);
+  const bahiaCl = classifyAa(bahiaV);
+  const bahiaPop = GEO.features.reduce((s,f)=>s+(f.properties.populacao||0),0);
+  const vsBa = !isFullState();
+  const dAdeq = cl.pctAdeq - bahiaCl.pctAdeq;
+
   document.getElementById('kpiRow-agua').innerHTML = `
     <div class="kpi"><div class="val">${fmt(feats.length)}</div><div class="lbl">Municípios na seleção</div></div>
     <div class="kpi"><div class="val">${fmt(pop)}</div><div class="lbl">População (Censo 2022)</div></div>
     <div class="kpi bom"><div class="val">${fmt(comForma)}</div><div class="sub">${fmt1(pctCom)}%</div><div class="lbl">Domicílios c/ forma de abastecimento</div></div>
     <div class="kpi alerta"><div class="val">${fmt(v.aa_sem_rede)}</div><div class="sub">${fmt1(pctSem)}%</div><div class="lbl">Sem ligação à rede geral</div></div>
-    <div class="kpi ${cl.pctAdeq>=70?'bom':cl.pctAdeq<40?'alerta':''}"><div class="val">${fmt1(cl.pctAdeq)}%</div><div class="lbl">Atendimento adequado</div></div>
+    <div class="kpi ${cl.pctAdeq>=70?'bom':cl.pctAdeq<40?'alerta':''}"><div class="val">${fmt1(cl.pctAdeq)}%</div>${vsBa?`<div class="sub vs-ba-kpi ${deltaClass(dAdeq,true)}">${fmtDeltaPp(dAdeq)} vs Bahia (${fmt1(bahiaCl.pctAdeq)}%)</div>`:''}<div class="lbl">Atendimento adequado</div></div>
   `;
 
-  renderDonut('donutAdeq-agua','legendAdeq-agua', [
-    ['Adequado', cl.adequado, '#071C33'],
-    ['Inadequado', cl.inadequado, '#78BFE8'],
-    ['Sem ligação', cl.sem, '#EFF7FC'],
-  ]);
-
   const colors = categoryColors(AA_COMP_CATS);
-  document.getElementById('compChart-agua').innerHTML = cl.total>0 ? AA_COMP_CATS.map((c,i)=>{
-    const val = v[c.key]||0, pct = cl.total? val/cl.total*100:0;
-    const light = colors[i].toUpperCase() === '#EFF7FC';
-    const barStyle = `width:${pct}%;background:${colors[i]}` + (light ? ';box-shadow:inset 0 0 0 1px #C9E4F5' : '');
-    return `<div class="chart-row"><div class="name" title="${c.label}">${c.label}</div>
-      <div class="bar-track"><div class="bar-fill" style="${barStyle}"></div></div>
-      <div class="pct">${fmt(val)} (${fmt1(pct)}%)</div></div>`;
-  }).join('') : '<div class="empty-msg">Sem dado para esta seleção.</div>';
+  const compHeader = document.querySelector('#view-agua .area-comp .panel-header span');
+  if(compHeader){
+    compHeader.textContent = vsBa
+      ? 'Composição — seleção × Bahia'
+      : 'Composição do abastecimento de água';
+  }
+  document.getElementById('compChart-agua').innerHTML = cl.total>0 ? (
+    (vsBa ? `<div class="comp-legend"><span class="lg sel"></span> Seleção<span class="lg ba"></span> Bahia</div>` : '') +
+    AA_COMP_CATS.map((c,i)=>{
+      const val = v[c.key]||0, pct = cl.total? val/cl.total*100:0;
+      const baPct = bahiaCl.total ? (bahiaV[c.key]||0)/bahiaCl.total*100 : 0;
+      const light = colors[i].toUpperCase() === '#EFF7FC';
+      const fillExtra = light ? ';box-shadow:inset 0 0 0 1px #C9E4F5' : '';
+      if(!vsBa){
+        return `<div class="chart-row"><div class="name" title="${c.label}">${c.label}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${colors[i]}${fillExtra}"></div></div>
+          <div class="pct">${fmt(val)} (${fmt1(pct)}%)</div></div>`;
+      }
+      return `<div class="chart-row dual">
+        <div class="name" title="${c.label}">${c.label}</div>
+        <div class="dual-bars">
+          <div class="dual-line">
+            <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${colors[i]}${fillExtra}"></div></div>
+            <div class="pct">${fmt1(pct)}%</div>
+          </div>
+          <div class="dual-line ba">
+            <div class="bar-track"><div class="bar-fill ba" style="width:${baPct}%"></div></div>
+            <div class="pct">${fmt1(baPct)}%</div>
+          </div>
+        </div>
+        <div class="pct abs">${fmt(val)}</div>
+      </div>`;
+    }).join('')
+  ) : '<div class="empty-msg">Sem dado para esta seleção.</div>';
 
   document.getElementById('redeChart-agua').innerHTML = `
     <div class="banheiro-row">
@@ -437,12 +495,14 @@ function renderTabAgua(){
       <span>Pop. rural: <b>${fmt(popRur)}</b></span>
     </div>`;
 
-  document.getElementById('scopeInfo-agua').innerHTML = `<p><b>${currentSelectionLabel()}</b><br><br>
-    Dados SIDRA/IBGE (Censo 2022) — domicílios particulares permanentes ocupados por forma de abastecimento de água.
-    <br><br>
-    <b>Adequado</b> = rede geral de distribuição + poço profundo/artesiano + poço raso/freático/cacimba.
-    <br><b>Inadequado</b> = fonte/nascente, carro-pipa, água de chuva, rios/açudes ou outra forma.
-  </p>`;
+  const scopeHeader = document.querySelector('#view-agua .area-scope .panel-header');
+  if(scopeHeader) scopeHeader.textContent = vsBa ? 'Comparação com a Bahia' : 'Nível selecionado';
+
+  document.getElementById('scopeInfo-agua').innerHTML = renderVsBahiaHtml({
+    label: currentSelectionLabel(),
+    feats, v, cl, pop, bahiaV, bahiaCl, bahiaPop,
+    semLabel: 'Sem ligação à rede',
+  });
 }
 
 // ================= município: detalhe =================
@@ -454,16 +514,17 @@ function renderMuniDetail(){
   const p = f.properties;
   panel.style.display='';
 
-  document.getElementById('muniDetailName').textContent =
-    `${p.nm_mun} — ${p.territorio}` + (p.semiarido==='SIM' ? ' · Semiárido' : '');
+  document.getElementById('muniDetailName').textContent = p.nm_mun;
 
   const aa = classifyAa(p);
+  const meta = [p.territorio, p.semiarido==='SIM' ? 'Semiárido' : null].filter(Boolean).join(' · ');
   document.getElementById('muniDetailBody').innerHTML = `
+    <p class="muni-detail-meta" title="${meta}">${meta}</p>
     <div class="detail-grid">
       <div class="detail-item"><div class="v">${fmt1(aa.pctAdeq)}%</div><div class="l">Água adequada</div></div>
       <div class="detail-item"><div class="v">${fmt(p.populacao)}</div><div class="l">População</div></div>
-      <div class="detail-item"><div class="v">${p.territorio}</div><div class="l">Território de Identidade</div></div>
-      <div class="detail-item"><div class="v">${fmt(p.aa_total)}</div><div class="l">Domicílios (água)</div></div>
+      <div class="detail-item"><div class="v">${fmt(p.aa_total)}</div><div class="l">Domicílios</div></div>
+      <div class="detail-item wide"><div class="v text">${p.territorio}</div><div class="l">Território de Identidade</div></div>
     </div>
   `;
 }
